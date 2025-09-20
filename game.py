@@ -1,10 +1,10 @@
 # =============================================================================
-# Chuck-A-Luck Wheel Simulator (Refactored Version 4.0 with Payout Table)
+#                  Chuck-A-Luck Wheel Simulator 
 #
 # A Pygame application that simulates a spinning prize wheel for a
 # "Chuck-A-Luck" style game.
 #
-# This version includes an MQTT client to communicate with a wireless
+# Includes an MQTT client to communicate with a wireless
 # button controller and a dynamic on-screen payout table.
 #
 # Controls:
@@ -678,4 +678,5 @@ class Game:
 # run only when the script is executed directly.
 if __name__ == "__main__":
     game = Game()
+
     game.run()
