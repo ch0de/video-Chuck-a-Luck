@@ -33,21 +33,12 @@ Power: LiPo Battery (~1200mAh) with a JST connector and a compatible charging ci
 
 Signal Integrity: A 3.3V to 5V logic level shifter for the NeoPixel data line.
 
-Software & Setup
+# Software & Setup
 The project relies on a specific software stack on both the host and the controller.
 
 1. Host Setup (Raspberry Pi 5)
-A. Create a Virtual Environment:
 It is highly recommended to run this project in a Python virtual environment.
 
-# Navigate to the project directory
-cd /path/to/your/game
-
-# Create a virtual environment
-python3 -m venv venv
-
-# Activate the environment
-source venv/bin/activate
 
 B. Install Python Libraries:
 With the environment active, install the required libraries.
@@ -95,7 +86,7 @@ Using the Thonny IDE connected to your Pico, go to Tools > Manage packages, sear
 C. Configure and Upload Script:
 Open the Pico W Python script and update the configuration section with your Wi-Fi and MQTT broker details. Save the script to your Pico as main.py so it runs automatically on boot.
 
-How to Play
+# How to Play
 Wireless Button: Press the physical button to start a spin.
 
 SPACE: An alternative keyboard key to spin the wheel.
@@ -108,7 +99,7 @@ T: Toggles a test mode where you can use the Left/Right arrow keys to manually s
 
 Q / ESC: Quits the application.
 
-Pico W Wiring
+# Pico W Wiring
 Connect the components to your Raspberry Pi Pico W as follows. It is crucial that all components share a common ground (GND).
 
 Power Circuit
