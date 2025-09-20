@@ -1,7 +1,7 @@
 Chuck-a-Luck Prize Wheel Simulator
 This project is a fully-featured prize wheel simulator built with Python and Pygame. It's designed to mimic a "Chuck-a-Luck" style casino game, complete with realistic physics-based animation, detailed statistics tracking, and integration with a custom-built wireless button controller.
 
-The game is hosted on a Raspberry Pi 5, which also runs an MQTT broker and can create its own Wi-Fi hotspot, making the entire system portable and self-contained.
+The game is hosted on a Raspberry Pi 5 (Any computer with python and HDMI out to a large TV should work though), which also runs an MQTT broker and can create its own Wi-Fi hotspot, making the entire system portable and self-contained.
 
 (The detailed statistics screen tracks all-time results and the last 45 spins.)
 
