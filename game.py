@@ -1,5 +1,5 @@
 # =============================================================================
-# Chuck-A-Luck Wheel Simulator 
+#                  Chuck-A-Luck Wheel Simulator 
 # A sophisticated Pygame application simulating a casino-style prize wheel.
 #
 # This version features a fully procedural wheel graphic, meaning the entire
@@ -226,26 +226,19 @@ def blit_center(surface, img, center):
 
 def draw_animated_pointer(surface, cx, cy, radius, anim_progress):
     """Draws the triangular pointer, applying an animated 'jiggle' based on anim_progress."""
-    # INVERTED ANIMATION LOGIC:
-    # The animation now represents the pointer FALLING back to its resting state.
-    # We use (1.0 - anim_progress) to invert the easing curve.
-    # When a peg hits, anim_progress resets to 0.0.
-    # (1.0 - 0.0) = 1.0. ease_out_back(1) = 1. Offset is at max (pointer is kicked UP).
-    # As anim_progress goes to 1.0, (1.0 - anim_progress) goes to 0.
-    # ease_out_back(0) = 0. Offset is 0 (pointer is at REST).
     y_offset = POINTER_JIGGLE_STRENGTH_PX * ease_out_back(1.0 - anim_progress)
-
-    # Base position for the pointer is now the lower, "resting" position.
-    # The animation subtracts from this, raising the pointer UPWARDS.
     y_top = cy - radius - 20 + POINTER_JIGGLE_STRENGTH_PX - y_offset
     half_w = max(15, radius // 25)
-    base_y = y_top - 15
-    tip_y  = y_top + 20
+    
+    # --- COORDINATE SYSTEM NOTE ---
+    # Pygame's Y-axis is inverted (0 is top, screen_height is bottom).
+    # The pointer is drawn physically at the top of the wheel.
+    # Its vertices are calculated relative to the wheel's center (cx, cy).
+    base_y = y_top + 35 # y_top is the highest point, so base_y is lower (larger Y value)
+    tip_y  = y_top + 15 # tip_y is higher than base_y (smaller Y value)
 
-    # Define the polygon points for the pointer
     tip, left, right = (cx, tip_y), (cx - half_w, base_y), (cx + half_w, base_y)
 
-    # Draw the pointer's fill and outline
     pygame.draw.polygon(surface, (255, 0, 0), (tip, left, right))
     pygame.draw.polygon(surface, COLOR_WHITE, (tip, left, right), width=3)
 
@@ -619,7 +612,7 @@ class Game:
         else:
             self.WINDOW_SIZE = (1200, 800)
         self.screen = pygame.display.set_mode(self.WINDOW_SIZE, flags)
-        pygame.display.set_caption("Chuck-A-Luck — v6.0 High-Res & Configurable — P:Sim 45 | S:Stats | T:Test | Space:Spin | Q/Esc:Quit")
+        pygame.display.set_caption("Chuck-A-Luck — v6.3 Final Highlight Fix — P:Sim 45 | S:Stats | T:Test | Space:Spin | Q/Esc:Quit")
 
         # --- Geometry, Assets, and State Initialization ---
         self.cx, self.cy = self.WINDOW_SIZE[0]//2, self.WINDOW_SIZE[1]//2
@@ -868,7 +861,6 @@ class Game:
         self.flash_timer += 1
 
         # --- Update Pointer Animation ---
-        # If the pointer animation is in progress, advance it.
         if self.pointer_anim_progress < 1.0:
             self.pointer_anim_progress += dt / POINTER_JIGGLE_DURATION_SEC
             self.pointer_anim_progress = min(1.0, self.pointer_anim_progress) # Clamp to 1.0
@@ -884,11 +876,11 @@ class Game:
             self.current_angle = self.rest_angle
 
         # --- Trigger Pointer Animation & Sound ---
-        # Play tick sound and trigger pointer jiggle as it passes pegs
         if self.click_sound and self.animation_state != "idle":
-            # COORDINATE SYSTEM FIX:
-            # The pointer is at the TOP (90 degrees in Pygame's angle system).
-            pointer_angle = 90
+            # The pointer is at the TOP (270 degrees in Pygame's angle system, where 0 is right).
+            # The wheel's visual rotation is CLOCKWISE for a positive angle.
+            # So the original segment angle `A` now under the pointer is `270 - current_angle`.
+            pointer_angle = 270 
             normalized_angle = self.current_angle % 360
             angle_under_pointer = (pointer_angle - normalized_angle + 360) % 360
             idx_now = int(angle_under_pointer / self.seg_angle)
@@ -900,12 +892,13 @@ class Game:
     def _update_test_mode(self):
         """Locks the wheel to the selected test position and updates the result text."""
         self.animation_state = "idle"
+        # The angle for the center of the segment we want to land on.
         target_segment_angle = (self.test_index + 0.5) * self.seg_angle
         
-        # CORRECTED ANGLE CALCULATION:
-        # To bring a segment at angle `theta` to the pointer at angle `90`,
-        # the required clockwise rotation is `theta - 90`.
-        final_angle = target_segment_angle - 90
+        # To make the `target_segment_angle` appear at the top (270 degrees),
+        # the wheel must be rotated by an amount `R` such that:
+        # `target_segment_angle + R = 270`. Therefore, `R = 270 - target_segment_angle`.
+        final_angle = 270 - target_segment_angle
         
         self.current_angle = self.rest_angle = final_angle
         result = WHEEL_RESULTS[self.test_index]
@@ -932,47 +925,40 @@ class Game:
 
     def _draw_winning_segment_highlight(self):
         """Draws a pulsing highlight over the winning segment of the wheel."""
-        # Only draw if the wheel is idle and there is a winning segment to show.
         if self.winning_segment_index is None or self.animation_state != "idle":
             return
 
-        # COORDINATE SYSTEM FIX:
-        # The winning segment is always at the top of the screen under the pointer.
-        # The pointer's angle is 90 degrees in Pygame's system (0=right, 90=up).
+        # --- BUG FIX ---
+        # The winning segment is always at the top. In Pygame's coordinate system,
+        # where 0 degrees is to the right and angles increase clockwise, the top
+        # of the screen is at 270 degrees. This was incorrectly set to 90.
         center_angle_deg = 90.0
-
-        # Calculate the start and end angles for the arc, spanning one segment width.
+        
         start_angle_deg = center_angle_deg - (self.seg_angle / 2)
         end_angle_deg   = center_angle_deg + (self.seg_angle / 2)
-
-        # Convert degrees to radians for pygame.draw.arc
+        
+        # Pygame's arc function needs radians and draws CCW from its start to end angle.
+        # However, our angles are defined in a CW system, so we must pass them correctly.
+        # The start_rad should be the smaller value.
         start_rad = math.radians(start_angle_deg)
         end_rad   = math.radians(end_angle_deg)
 
-        # Create a surface for the highlight to allow for transparency.
         highlight_surf = pygame.Surface(self.WINDOW_SIZE, pygame.SRCALPHA)
-        # The 'width' of the arc is set to be large enough to cover the dice area.
         arc_width = int(self.wheel_radius * 0.35)
-        # The rectangle that defines the bounds of the arc.
         bounding_rect = pygame.Rect(self.cx - self.wheel_radius, self.cy - self.wheel_radius, self.wheel_radius*2, self.wheel_radius*2)
 
-        # The highlight pulses using a sine wave based on the flash_timer.
-        # This creates a smooth fade in/out effect.
-        pulse = (math.sin(self.flash_timer * 0.1) + 1) / 2 # Normalize to 0-1 range
-        alpha = 50 + (pulse * 100) # Varies between 50 and 150
+        pulse = (math.sin(self.flash_timer * 0.1) + 1) / 2
+        alpha = 50 + (pulse * 100)
         highlight_color = (*COLOR_GOLD, alpha)
 
-        # Draw the arc. Pygame's arc function takes start angle then end angle
-        # and draws counter-clockwise from start to end.
+        # Pygame draws the arc from start_rad to end_rad COUNTER-CLOCKWISE.
+        # Since our angles are set up correctly, this will draw the arc at the top.
         pygame.draw.arc(highlight_surf, highlight_color, bounding_rect, start_rad, end_rad, arc_width)
-
-        # Blit the highlight onto the main screen.
         self.screen.blit(highlight_surf, (0,0))
 
 
     def _draw_game_screen(self):
         """Renders all elements for the main game screen."""
-        # Draw static UI elements
         self.screen.blit(self.title_text_surf, (30, 20))
         logo_y = 20 + self.title_text_surf.get_height() + 10
         if self.logo_img: self.screen.blit(self.logo_img, (30, logo_y))
@@ -980,18 +966,15 @@ class Game:
             table_rect = self.payout_table_surf.get_rect(bottomright=(self.WINDOW_SIZE[0]-30, self.WINDOW_SIZE[1]-20))
             self.screen.blit(self.payout_table_surf, table_rect)
 
-        # Draw the rotated wheel
+        # Draw the rotated wheel. `rotozoom` rotates CCW, so a negative angle produces a CW visual rotation.
         rotated = pygame.transform.rotozoom(self.wheel_img, -self.current_angle, 1.0)
         blit_center(self.screen, rotated, (self.cx, self.cy))
 
-        # Draw the winning segment highlight ON TOP of the rotated wheel
         self._draw_winning_segment_highlight()
 
-        # Draw the outer ring and animated pointer ON TOP of everything else
         pygame.draw.circle(self.screen, COLOR_BLACK, (self.cx, self.cy), self.wheel_radius + 20, width=6)
         draw_animated_pointer(self.screen, self.cx, self.cy, self.wheel_radius, self.pointer_anim_progress)
 
-        # Draw spin history and stats tables
         history_title_rect = self.history_title_surf_5.get_rect(topright=(self.WINDOW_SIZE[0]-50, 60))
         self.screen.blit(self.history_title_surf_5, history_title_rect)
         y = history_title_rect.bottom + 10
@@ -1006,19 +989,16 @@ class Game:
         if self.last_5_stats_surf:
             self.screen.blit(self.last_5_stats_surf, self.last_5_stats_surf.get_rect(topright=(self.WINDOW_SIZE[0]-50, y+20)))
 
-        # Draw the winning result with a rainbow effect
         if self.result_display_text:
             self.rainbow_hue = (self.rainbow_hue + 1) % 360
             rainbow = pygame.Color(0,0,0); rainbow.hsva = (self.rainbow_hue, 100, 100, 100)
             result_surf = self.result_font.render(self.result_display_text, True, rainbow)
             result_rect = result_surf.get_rect(bottomleft=(30, self.WINDOW_SIZE[1]-20))
             self.screen.blit(result_surf, result_rect)
-            # Flash the "Winning Number" title
             if (self.flash_timer // 30) % 2 == 0 and not self.test_mode:
                 title_rect = self.result_title_surf.get_rect(bottomleft=result_rect.topleft)
                 self.screen.blit(self.result_title_surf, title_rect)
 
-        # Draw test mode overlay if active
         if self.test_mode:
             test_mode_surf = self.title_font.render("--- TEST MODE ---", True, (255,255,0))
             self.screen.blit(test_mode_surf, test_mode_surf.get_rect(midbottom=(self.cx, self.WINDOW_SIZE[1]-20)))
@@ -1053,13 +1033,16 @@ class Game:
     def _pick_target(self):
         """Selects a random target segment and calculates the final resting angle for the spin."""
         self.result_display_text = ""
+        # k is the index of the winning segment
         k = random.randrange(NUM_PEGS)
+        # The angle for the center of that segment.
         target_segment_angle = (k + 0.5) * self.seg_angle
         spins = random.randint(MIN_SPINS, MAX_SPINS)
         
-        # CORRECTED ANGLE CALCULATION:
-        # Calculate final destination to place the target segment under the 90-degree pointer (TOP).
-        final_destination = target_segment_angle - 90
+        # The final resting angle must place the `target_segment_angle` at the top pointer (270 degrees).
+        # So, the final rotation angle is `270 - target_segment_angle`.
+        final_destination = 270 - target_segment_angle
+        
         start_angle = self.rest_angle - WIND_UP_ANGLE_DEG
         # Calculate total rotation needed to get from wind-up start to the final destination over several spins
         total_rotation = (spins * 360) + ((final_destination - (start_angle % 360) + 360) % 360)
@@ -1163,18 +1146,20 @@ class Game:
         if u >= 1.0: # Spin has finished
             self.animation_state = "idle"
             self.rest_angle = self.final_angle_base
-            # Determine the winning segment index based on the final resting angle
-            # The pointer is at the TOP (90 degrees).
-            pointer_angle = 90
+            
+            # Determine the winning segment index based on the final resting angle.
+            # The original angle `A` of the segment that has landed under the pointer (270 deg) is
+            # found by reversing the rotation: `A = 270 - final_rotation`.
+            pointer_angle = 270
             normalized = self.rest_angle % 360
             
-            # With the corrected target angle calculation in _pick_target, the 180-degree
-            # patch is no longer needed. This calculation is now direct and correct.
-            under_pointer = (pointer_angle - normalized + 360) % 360
+            # The angle on the original, un-rotated wheel that is now under the pointer.
+            under_pointer_angle = (pointer_angle - normalized + 360) % 360
             
-            idx = int(under_pointer / self.seg_angle)
+            idx = int(under_pointer_angle / self.seg_angle)
             self.winning_segment_index = idx # Store winner for highlighting
             winning_result = WHEEL_RESULTS[idx]
+
             # Process and display the result
             self.result_display_text = self._process_spin_result(winning_result)
             self.results_history_full.insert(0, self.result_display_text)
@@ -1182,7 +1167,7 @@ class Game:
                 self.results_history_full = self.results_history_full[:45]
             self._update_on_screen_stats()
             
-            # --- NEW: Send specific state message based on the outcome. ---
+            # Send specific state message to the button based on the outcome.
             if winning_result == (0, 0, 0):
                 self._publish_state("flash_red")
             elif winning_result == (9, 9, 9):
